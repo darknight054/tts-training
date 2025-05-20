@@ -1,0 +1,8 @@
+pydub
+num2words
+rapidfuzz
+language_tool_python
+pandas
+tqdm
+pathlib
+pywordsegment
