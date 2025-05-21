@@ -1,96 +1,123 @@
 #!/usr/bin/env python3
 """
-Resample every .wav file in a directory tree to 44 100 Hz.
+Resample every .wav file in a directory tree to a target sample rate.
 
 Dependencies
 ------------
-pip install pydub tqdm
+  pip install pydub tqdm
 
-You also need FFmpeg (pydub’s back-end):  
-  • Linux/macOS: install via your package manager (e.g., `brew install ffmpeg`)  
+You also need FFmpeg (pydub’s back-end):
+  • Linux/macOS: install via your package manager (e.g., `brew install ffmpeg`)
   • Windows: download the FFmpeg build and add its /bin folder to your PATH.
 """
 
+import argparse
 from pathlib import Path
 from pydub import AudioSegment
 from tqdm import tqdm
 
-# ---------- CONFIG -----------------------------------------------------------
-SOURCE_DIR = Path("data/raw-audio")   # <- change this
-OUTPUT_DIR = Path("data/processed-audio") # <- output directory
-RECURSIVE  = True                          # set False to skip sub-folders
-TARGET_SR  = 44_100                        # samples per second
-# -----------------------------------------------------------------------------
 
-def resample_wav(src_path: Path, out_dir: Path, target_sr: int):
-    """Load -> resample -> export a single WAV.
-    
+def resample_wav(src_path: Path, out_dir: Path, target_sr: int) -> Path:
+    """Load -> resample -> export a single WAV file.
+
     Args:
         src_path: Path to the source WAV file
         out_dir: Directory where the resampled file will be saved
         target_sr: Target sample rate in Hz
-        
+
     Returns:
         Path to the resampled file
     """
-    audio = AudioSegment.from_wav(src_path)          # pydub auto-detects SR
+    audio = AudioSegment.from_wav(src_path)
     audio = audio.set_frame_rate(target_sr)
-    
-    # Create output directory if it doesn't exist
+
     out_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Keep the original filename but place it in the output directory
     out_path = out_dir / src_path.name
     audio.export(out_path, format="wav")
     return out_path
 
+
 def main():
-    pattern = "**/*.wav" if RECURSIVE else "*.wav"
-    wav_paths = list(SOURCE_DIR.glob(pattern))
+    parser = argparse.ArgumentParser(
+        description="Resample .wav files in a directory tree to a target sample rate"
+    )
+    parser.add_argument(
+        "--source-dir", "-s",
+        type=Path,
+        default=Path("data/raw-audio"),
+        help="Directory containing original .wav files"
+    )
+    parser.add_argument(
+        "--output-dir", "-o",
+        type=Path,
+        default=Path("data/processed-audio"),
+        help="Directory where resampled .wav files will be saved"
+    )
+    parser.add_argument(
+        "--recursive", "-r",
+        action="store_true",
+        help="Recursively include subdirectories (default)"
+    )
+    parser.add_argument(
+        "--no-recursive", dest="recursive",
+        action="store_false",
+        help="Do not recurse; only process top-level directory"
+    )
+    parser.add_argument(
+        "--target-sr", "-t",
+        type=int,
+        default=44100,
+        help="Target sample rate in Hz (default: 44100)"
+    )
+    parser.add_argument(
+        "--force", "-f",
+        action="store_true",
+        help="Overwrite in-place without confirmation if source == output"
+    )
+    args = parser.parse_args()
+
+    source_dir = args.source_dir
+    output_dir = args.output_dir
+    recursive = args.recursive if args.recursive is not None else True
+    target_sr = args.target_sr
+    force = args.force
+
+    pattern = "**/*.wav" if recursive else "*.wav"
+    wav_paths = list(source_dir.glob(pattern))
 
     if not wav_paths:
-        print("No .wav files found.")
+        print(f"No .wav files found in {source_dir}.")
         return
-        
-    # Create output directory structure
-    if OUTPUT_DIR == SOURCE_DIR:
-        print("Warning: Output directory is the same as source directory.")
-        print("Original files will be overwritten.")
-        proceed = input("Continue? (y/n): ").lower().strip()
-        if proceed != 'y':
-            print("Operation cancelled.")
-            return
-    
-    print(f"Source directory: {SOURCE_DIR}")
-    print(f"Output directory: {OUTPUT_DIR}")
-    print(f"Target sample rate: {TARGET_SR} Hz")
-    
-    # Keep track of processed files
-    processed_count = 0
-    skipped_count = 0
 
+    if source_dir.resolve() == output_dir.resolve():
+        if not force:
+            print("Warning: Output directory is the same as source directory. Original files will be overwritten.")
+            resp = input("Continue? (y/n): ").lower().strip()
+            if resp != 'y':
+                print("Operation cancelled.")
+                return
+
+    print(f"Source directory : {source_dir}")
+    print(f"Output directory : {output_dir}")
+    print(f"Recursive         : {recursive}")
+    print(f"Target sample rate: {target_sr} Hz")
+
+    processed, skipped = 0, 0
     for wav_file in tqdm(wav_paths, desc="Resampling", unit="file"):
         try:
-            # Calculate the relative path from SOURCE_DIR to preserve directory structure
-            rel_path = wav_file.relative_to(SOURCE_DIR) if RECURSIVE else wav_file.name
-            
-            # Create the corresponding output directory
-            if RECURSIVE:
-                out_subdir = OUTPUT_DIR / rel_path.parent
-            else:
-                out_subdir = OUTPUT_DIR
-                
-            # Resample and save the file
-            output_file = resample_wav(wav_file, out_subdir, TARGET_SR)
-            processed_count += 1
-        except Exception as exc:
-            print(f"⚠️  Skipped {wav_file}: {exc}")
-            skipped_count += 1
+            rel_path = wav_file.relative_to(source_dir) if recursive else wav_file.name
+            out_subdir = (output_dir / rel_path.parent) if recursive else output_dir
+            resample_wav(wav_file, out_subdir, target_sr)
+            processed += 1
+        except Exception as e:
+            print(f"⚠️ Skipped {wav_file}: {e}")
+            skipped += 1
 
-    print(f"Done! Resampled {processed_count} files at {TARGET_SR} Hz.")
-    if skipped_count > 0:
-        print(f"Skipped {skipped_count} files due to errors.")
-    print(f"Output saved to: {OUTPUT_DIR}")
+    print(f"Done! Resampled {processed} files at {target_sr} Hz.")
+    if skipped:
+        print(f"Skipped {skipped} files due to errors.")
+    print(f"Output saved to: {output_dir}")
+
 
 if __name__ == "__main__":
     main()
