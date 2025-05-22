@@ -45,11 +45,11 @@ def segment_text(text: str) -> str:
             segmented.append(tok)
     return ' '.join(segmented)
 
-def process_text(text: str, slang_dict: dict, keep_punctuation=True) -> str:
-    if keep_punctuation:
-        text = clean_alignment(text)
-    text = expand_slang(text, slang_dict)
+def process_text(text: str, slang_dict: dict, punctuation) -> str:
+    if punctuation:
+      text = clean_alignment(text)
     text = segment_text(text)
+    text = expand_slang(text, slang_dict)
     return text
 
 def main():
@@ -82,7 +82,7 @@ def main():
         help="Cleans the punctuation or not"
     )
     args = p.parse_args()
-
+    print(f"Extra Punctuation flag: {args.keep_punctuation}")
     # Load data
     df = pd.read_csv(args.input_csv)
 
@@ -113,11 +113,11 @@ def main():
         best_err = float('inf')
         best_proc = None
         for orig in cl:
-            cand = process_text(orig, slang_dict, args.keep_punctuation)
-            err_count = len(tool.check(cand))
-            if err_count < best_err:
-                best_err = err_count
-                best_proc = cand
+          cand = process_text(orig, slang_dict, args.keep_punctuation)
+          err_count = len(tool.check(cand))
+          if err_count < best_err:
+              best_err = err_count
+              best_proc = cand
         for orig in cl:
             final_map[orig] = best_proc
 
@@ -129,7 +129,7 @@ def main():
             if orig in removed_set:
                 continue
             wav = os.path.join(args.data_path, row['wav_file'])
-            cleaned = clean_alignment(final_map.get(orig, ''))
+            cleaned = final_map.get(orig, '')
             fout.write(f"{wav}|EN-default|EN|{cleaned}\n")
 
 if __name__ == "__main__":
