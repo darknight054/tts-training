@@ -6,6 +6,7 @@ import regex as re
 import pywordsegment
 from rapidfuzz import process
 import language_tool_python
+from tqdm import tqdm
 
 # 1. Define your regex alignment rules
 grammar_regex_rules = [
@@ -77,7 +78,7 @@ def main():
     )
     p.add_argument(
         "--keep-punctuation", "-kp",
-        action=argparse.BooleanOptionalAction,
+        action='store_true',
         help="Cleans the punctuation or not"
     )
     args = p.parse_args()
@@ -93,7 +94,7 @@ def main():
     orig_texts = df['transcript'].tolist()
     clusters = []
     threshold = 90
-    for t in orig_texts:
+    for t in tqdm(orig_texts, desc="Clustering transcripts"):
         for cl in clusters:
             if process.extractOne(t, [cl[0]])[1] >= threshold:
                 cl.append(t)
@@ -107,7 +108,7 @@ def main():
     # Select best from each cluster & map originals → cleaned
     final_map = {}
     removed_set = set()
-    for cl in clusters:
+    for cl in tqdm(clusters, desc="Selecting best candidates"):
         removed_set.update(cl[1:])
         best_err = float('inf')
         best_proc = None
@@ -123,7 +124,7 @@ def main():
     # Write cleaned list
     os.makedirs(os.path.dirname(args.output_list), exist_ok=True)
     with open(args.output_list, 'w', encoding='utf-8') as fout:
-        for _, row in df.iterrows():
+        for _, row in tqdm(df.iterrows(), total=len(df), desc="Writing cleaned transcripts"):
             orig = row['transcript']
             if orig in removed_set:
                 continue
