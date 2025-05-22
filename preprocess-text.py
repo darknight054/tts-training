@@ -44,8 +44,9 @@ def segment_text(text: str) -> str:
             segmented.append(tok)
     return ' '.join(segmented)
 
-def process_text(text: str, slang_dict: dict) -> str:
-    text = clean_alignment(text)
+def process_text(text: str, slang_dict: dict, keep_punctuation=True) -> str:
+    if keep_punctuation:
+        text = clean_alignment(text)
     text = expand_slang(text, slang_dict)
     text = segment_text(text)
     return text
@@ -73,6 +74,11 @@ def main():
         "--slang-json", "-s",
         default="slang_abbreviations.json",
         help="Path to the slang dictionary JSON"
+    )
+    p.add_argument(
+        "--keep-punctuation", "-kp",
+        action=argparse.BooleanOptionalAction,
+        help="Cleans the punctuation or not"
     )
     args = p.parse_args()
 
@@ -106,7 +112,7 @@ def main():
         best_err = float('inf')
         best_proc = None
         for orig in cl:
-            cand = process_text(orig, slang_dict)
+            cand = process_text(orig, slang_dict, args.keep-punctuation)
             err_count = len(tool.check(cand))
             if err_count < best_err:
                 best_err = err_count
