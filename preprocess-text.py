@@ -112,7 +112,7 @@ def main():
         best_err = float('inf')
         best_proc = None
         for orig in cl:
-            cand = process_text(orig, slang_dict, args.keep-punctuation)
+            cand = process_text(orig, slang_dict, args.keep_punctuation)
             err_count = len(tool.check(cand))
             if err_count < best_err:
                 best_err = err_count
